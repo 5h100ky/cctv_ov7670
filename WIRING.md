@@ -40,8 +40,8 @@ or one double-row header (2×9). Pin numbering left-to-right, top-to-bottom:
 |---|------------|-------------|-------|
 | 1 | 3V3 / VCC  | 3V3         | **3.3 V only — never 5 V** |
 | 2 | GND        | GND         | Common ground |
-| 3 | SCL / SIOC | GP1         | SCCB clock — add 4.7 kΩ pull-up to 3.3 V |
-| 4 | SDA / SIOD | GP0         | SCCB data  — add 4.7 kΩ pull-up to 3.3 V |
+| 3 | SCL / SIOC | GP1         | SCCB clock — internal pull-up sufficient for short wires |
+| 4 | SDA / SIOD | GP0         | SCCB data  — internal pull-up sufficient for short wires |
 | 5 | VSYNC      | GP2         | Frame sync pulse |
 | 6 | HREF       | GP13        | Line-valid gate |
 | 7 | PCLK       | GP12        | Pixel clock input |
@@ -61,18 +61,26 @@ or one double-row header (2×9). Pin numbering left-to-right, top-to-bottom:
 
 ---
 
-## Pull-up Resistors (required)
+## Pull-up Resistors (usually not needed)
+
+MicroPython's `machine.I2C` automatically enables the RP2040's internal
+pull-ups (~50 kΩ) on GP0/GP1. For a direct breadboard connection with
+short jumper wires at 100 kHz, **no external resistors are required**.
+
+Add external 4.7 kΩ pull-ups only if you experience I2C errors (`PID=0x00`)
+caused by:
+- Jumper wires longer than ~10 cm
+- Multiple devices sharing the same SCCB bus
+- Running SCCB at 400 kHz or faster
 
 ```
-3V3 ──┬──────────────────────────────────
-      │                │
-     4.7kΩ            4.7kΩ
-      │                │
-    SIOD (GP0)       SIOC (GP1)
+(optional, only if needed)
+3V3 ──┬───────────────────
+      │             │
+    4.7kΩ         4.7kΩ
+      │             │
+   SIOD (GP0)   SIOC (GP1)
 ```
-
-Without pull-up resistors the I2C/SCCB bus will not work and
-`test_camera.py` will report `PID=0x00 VER=0x00`.
 
 ---
 
