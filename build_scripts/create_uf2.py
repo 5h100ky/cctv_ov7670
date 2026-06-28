@@ -14,8 +14,8 @@ Usage:
 Output: dist/cctv_ov7670.uf2
 """
 
-import json
 import os
+import re
 import struct
 import urllib.request
 import shutil
@@ -40,8 +40,8 @@ FIRMWARE_FILES = [
     ("firmware/main.py",   "main.py"),
 ]
 
-MICROPYTHON_RELEASES_API = "https://api.github.com/repos/micropython/micropython/releases/latest"
-DIST_DIR                 = "dist"
+MICROPYTHON_DOWNLOAD_PAGE = "https://micropython.org/download/RPI_PICO/"
+DIST_DIR                  = "dist"
 
 
 # ---------- UF2 helpers ----------
@@ -127,37 +127,35 @@ def main() -> None:
     dist_dir     = os.path.join(project_root, DIST_DIR)
     os.makedirs(dist_dir, exist_ok=True)
 
-    # 1. Download MicroPython UF2 (latest release from GitHub)
+    # 1. Download MicroPython UF2 (latest from micropython.org download page)
     mp_uf2_path = os.path.join(dist_dir, "micropython_rp2040.uf2")
     if os.path.exists(mp_uf2_path):
         print(f"[1] Using cached MicroPython UF2: {mp_uf2_path}")
     else:
-        print("[1] Fetching latest MicroPython release info...")
+        print(f"[1] Finding latest MicroPython UF2 from micropython.org ...")
         req = urllib.request.Request(
-            MICROPYTHON_RELEASES_API,
-            headers={"Accept": "application/vnd.github+json",
-                     "User-Agent": "cctv_ov7670_builder"},
+            MICROPYTHON_DOWNLOAD_PAGE,
+            headers={"User-Agent": "Mozilla/5.0 cctv_ov7670_builder"},
         )
         with urllib.request.urlopen(req) as r:
-            release = json.loads(r.read())
+            html = r.read().decode("utf-8", errors="replace")
 
-        # Find asset: rp2-pico*.uf2 (not picow, not pico2)
-        uf2_url = None
-        for asset in release["assets"]:
-            name = asset["name"].lower()
-            if name.startswith("rp2-pico") and name.endswith(".uf2") \
-               and "picow" not in name and "pico2" not in name:
-                uf2_url  = asset["browser_download_url"]
-                uf2_name = asset["name"]
-                break
+        # micropython.org lists releases in reverse-chronological order.
+        # Stable releases match: /resources/firmware/RPI_PICO-YYYYMMDD-vX.Y.Z.uf2
+        m = re.search(r'href="(/resources/firmware/RPI_PICO-\d{8}-v[\d.]+\.uf2)"', html)
+        if m is None:
+            sys.exit(
+                "ERROR: Could not parse a UF2 link from "
+                f"{MICROPYTHON_DOWNLOAD_PAGE}\n"
+                "The page structure may have changed — check the URL manually."
+            )
 
-        if uf2_url is None:
-            sys.exit("ERROR: Could not find rp2-pico UF2 in latest MicroPython release.\n"
-                     f"  Release: {release.get('tag_name')} — assets: "
-                     f"{[a['name'] for a in release['assets']]}")
+        rel_path = m.group(1)
+        uf2_url  = "https://micropython.org" + rel_path
+        uf2_name = rel_path.split("/")[-1]
+        print(f"    Found: {uf2_name}")
 
-        print(f"    Downloading: {uf2_name}")
-        with urllib.request.urlopen(uf2_url) as r, open(mp_uf2_path, 'wb') as f:
+        with urllib.request.urlopen(uf2_url) as r, open(mp_uf2_path, "wb") as f:
             shutil.copyfileobj(r, f)
         print(f"    Saved {os.path.getsize(mp_uf2_path):,} bytes")
 
