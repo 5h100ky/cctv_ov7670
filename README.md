@@ -2,6 +2,13 @@
 
 A minimal CCTV that streams QQVGA (160×120) grayscale video from an OV7670 camera module over USB-CDC to a PC viewer, built with MicroPython on the Waveshare RP2040 Zero.
 
+## Quick Links
+
+- **[SETUP.md](SETUP.md)** — Full installation guide for macOS and Windows
+- **[WIRING.md](WIRING.md)** — 18-pin OV7670 wiring diagram
+
+---
+
 ## Flashing (easiest way)
 
 Download `cctv_ov7670.uf2` from the [latest release](../../releases/latest) or the [Actions artifacts](../../actions).
