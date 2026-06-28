@@ -14,6 +14,7 @@ Usage:
 Output: dist/cctv_ov7670.uf2
 """
 
+import json
 import os
 import struct
 import urllib.request
@@ -39,8 +40,8 @@ FIRMWARE_FILES = [
     ("firmware/main.py",   "main.py"),
 ]
 
-MICROPYTHON_URL = "https://micropython.org/download/RPI_PICO/latest.uf2"
-DIST_DIR        = "dist"
+MICROPYTHON_RELEASES_API = "https://api.github.com/repos/micropython/micropython/releases/latest"
+DIST_DIR                 = "dist"
 
 
 # ---------- UF2 helpers ----------
@@ -126,13 +127,37 @@ def main() -> None:
     dist_dir     = os.path.join(project_root, DIST_DIR)
     os.makedirs(dist_dir, exist_ok=True)
 
-    # 1. Download MicroPython UF2
+    # 1. Download MicroPython UF2 (latest release from GitHub)
     mp_uf2_path = os.path.join(dist_dir, "micropython_rp2040.uf2")
     if os.path.exists(mp_uf2_path):
         print(f"[1] Using cached MicroPython UF2: {mp_uf2_path}")
     else:
-        print(f"[1] Downloading MicroPython UF2 from:\n    {MICROPYTHON_URL}")
-        with urllib.request.urlopen(MICROPYTHON_URL) as r, open(mp_uf2_path, 'wb') as f:
+        print("[1] Fetching latest MicroPython release info...")
+        req = urllib.request.Request(
+            MICROPYTHON_RELEASES_API,
+            headers={"Accept": "application/vnd.github+json",
+                     "User-Agent": "cctv_ov7670_builder"},
+        )
+        with urllib.request.urlopen(req) as r:
+            release = json.loads(r.read())
+
+        # Find asset: rp2-pico*.uf2 (not picow, not pico2)
+        uf2_url = None
+        for asset in release["assets"]:
+            name = asset["name"].lower()
+            if name.startswith("rp2-pico") and name.endswith(".uf2") \
+               and "picow" not in name and "pico2" not in name:
+                uf2_url  = asset["browser_download_url"]
+                uf2_name = asset["name"]
+                break
+
+        if uf2_url is None:
+            sys.exit("ERROR: Could not find rp2-pico UF2 in latest MicroPython release.\n"
+                     f"  Release: {release.get('tag_name')} — assets: "
+                     f"{[a['name'] for a in release['assets']]}")
+
+        print(f"    Downloading: {uf2_name}")
+        with urllib.request.urlopen(uf2_url) as r, open(mp_uf2_path, 'wb') as f:
             shutil.copyfileobj(r, f)
         print(f"    Saved {os.path.getsize(mp_uf2_path):,} bytes")
 
