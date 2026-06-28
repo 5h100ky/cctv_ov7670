@@ -117,7 +117,17 @@ def _build_littlefs_image() -> bytes:
             f.write(content)
         print(f"  + {dst}  ({len(content):,} bytes)")
 
-    return bytes(fs.context)
+    # .buffer gives the flat bytearray of the full filesystem image
+    ctx = fs.context
+    if hasattr(ctx, "buffer"):
+        return bytes(ctx.buffer)
+    # Fallback for older littlefs-python: reconstruct from internal block list
+    storage = ctx._storage
+    image = bytearray(FS_BLOCK_SIZE * FS_BLOCK_COUNT)
+    for i, block in enumerate(storage):
+        if block:
+            image[i * FS_BLOCK_SIZE : (i + 1) * FS_BLOCK_SIZE] = block
+    return bytes(image)
 
 
 # ---------- main ----------
