@@ -25,6 +25,25 @@ brew install python
 
 Or download the installer from [python.org](https://www.python.org/downloads/).
 
+> **macOS — tkinter note**
+> Homebrew Python does not include Tcl/Tk (required by the viewer GUI) by default.
+> Install it separately and match your Python version:
+> ```bash
+> # Check your Python version first
+> python3 --version          # e.g. Python 3.14.x
+>
+> # Install the matching Tk package
+> brew install python-tk@3.14   # replace 3.14 with your version
+> ```
+> After installing, **delete and recreate your virtual environment** so it picks up tkinter:
+> ```bash
+> deactivate
+> rm -rf .venv
+> python3 -m venv .venv
+> source .venv/bin/activate
+> pip install pyserial pillow mpremote littlefs-python
+> ```
+
 ---
 
 ### Windows
@@ -307,8 +326,9 @@ python pc_app\convert_frames.py C:\path\to\recording\folder 5
 | Problem | Fix |
 |---------|-----|
 | `mpremote: command not found` | Virtual environment not active — run `source .venv/bin/activate` |
-| No `/dev/tty.usbmodem*` device | Try a different USB cable (some are charge-only); install no extra driver needed on macOS |
-| `Permission denied` on serial port | `sudo chmod 666 /dev/tty.usbmodem*`  or add yourself to the `dialout` group |
+| `ModuleNotFoundError: No module named '_tkinter'` | Run `brew install python-tk@3.14` (match your Python version), then recreate the venv |
+| No `/dev/tty.usbmodem*` device | Try a different USB cable (some are charge-only) |
+| `Permission denied` on serial port | `sudo chmod 666 /dev/tty.usbmodem*` |
 | Viewer shows black canvas | Check VSYNC on GP2, PWDN tied to GND, RESET tied to 3V3 |
 
 ### Windows
