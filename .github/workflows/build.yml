@@ -1,0 +1,63 @@
+name: Build UF2
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*.*.*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache MicroPython UF2
+        uses: actions/cache@v4
+        with:
+          path: dist/micropython_rp2040.uf2
+          key: micropython-rp2040-${{ hashFiles('build_scripts/create_uf2.py') }}
+
+      - name: Install build dependencies
+        run: pip install littlefs-python
+
+      - name: Build combined UF2
+        run: python build_scripts/create_uf2.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cctv_ov7670_uf2
+          path: dist/cctv_ov7670.uf2
+          retention-days: 30
+
+      # Create a GitHub Release with the UF2 when a version tag is pushed (e.g. v1.0.0)
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Release ${{ github.ref_name }}"
+          body: |
+            ## RP2040 Zero + OV7670 CCTV — ${{ github.ref_name }}
+
+            ### 플래싱 방법
+            1. RP2040 Zero 의 **BOOT 버튼을 누른 채** USB 연결
+            2. PC에 `RPI-RP2` 드라이브가 나타나면 아래 UF2 파일을 드래그
+            3. 자동으로 재시작 → CCTV 스트리밍 시작
+
+            ### PC 뷰어 실행
+            ```bash
+            pip install pyserial pillow
+            python pc_app/viewer.py
+            ```
+          files: dist/cctv_ov7670.uf2
+          fail_on_unmatched_files: true
