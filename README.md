@@ -1,74 +1,139 @@
-# RP2040 Zero + OV7670 CCTV 프로젝트
+# RP2040 Zero + OV7670 CCTV
 
-QQVGA(160×120) 그레이스케일 영상을 USB-CDC로 PC에 스트리밍하는 CCTV.
+A minimal CCTV that streams QQVGA (160×120) grayscale video from an OV7670 camera module over USB-CDC to a PC viewer, built with MicroPython on the Waveshare RP2040 Zero.
 
-## 파일 구조
+## Flashing (easiest way)
+
+Download `cctv_ov7670.uf2` from the [latest release](../../releases/latest) or the [Actions artifacts](../../actions).
+
+1. Hold the **BOOT button** on the RP2040 Zero while plugging in USB
+2. A `RPI-RP2` drive appears — drag `cctv_ov7670.uf2` onto it
+3. The board reboots and starts streaming automatically
+
+## Repository layout
+
 ```
 cctv_ov7670/
 ├── firmware/
-│   ├── main.py        ← RP2040 메인 (MicroPython)
-│   └── ov7670.py      ← OV7670 SCCB 드라이버
+│   ├── main.py           RP2040 main firmware (MicroPython)
+│   ├── ov7670.py         OV7670 SCCB/I2C driver + register table
+│   ├── test_camera.py    Wiring diagnostic — run this first
+│   └── boot.py           Optional auto-start on power-up
 ├── pc_app/
-│   ├── viewer.py      ← PC 뷰어 앱
+│   ├── viewer.py         PC viewer (live display, snapshot, recording)
+│   ├── convert_frames.py Convert recorded JPEG frames to MP4
 │   └── requirements.txt
-└── WIRING.md          ← 배선표
+├── build_scripts/
+│   └── create_uf2.py     Builds the combined UF2 locally
+├── .github/workflows/
+│   └── build.yml         GitHub Actions — builds UF2 on every push
+└── WIRING.md             Pin wiring reference
 ```
 
-## 설치 및 실행
+## Wiring
 
-### 1. 펌웨어 (RP2040 Zero)
-1. Thonny IDE 또는 mpremote 사용
-2. MicroPython 최신 버전 설치 (`RP2040` 빌드)
-3. `firmware/ov7670.py`, `firmware/main.py` 를 RP2040에 업로드
-4. `main.py` 실행 (또는 `main.py` → `boot.py`로 이름 변경하면 전원 시 자동 실행)
+| OV7670 | RP2040 Zero | Notes |
+|--------|-------------|-------|
+| VCC | 3V3 | 3.3 V only — never 5 V |
+| GND | GND | |
+| SIOD | GP0 | SCCB data (I2C SDA) |
+| SIOC | GP1 | SCCB clock (I2C SCL) |
+| VSYNC | GP2 | Frame sync |
+| D0–D7 | GP4–GP11 | 8-bit parallel data (must be consecutive) |
+| PCLK | GP12 | Pixel clock |
+| HREF | GP13 | Line-valid signal |
+| XCLK | GP15 | ~8 MHz clock output (PWM-generated) |
+| RESET | 3V3 | Tie HIGH to disable reset |
+| PWDN | GND | Tie LOW to enable camera |
+
+> Add **4.7 kΩ pull-up resistors** from SIOD and SIOC to 3.3 V.
+
+See [WIRING.md](WIRING.md) for the full ASCII diagram.
+
+## Manual firmware upload (alternative to UF2)
 
 ```bash
-# mpremote 로 파일 업로드
+# Create a virtual environment and install tools
+python3 -m venv .venv
+source .venv/bin/activate      # Windows: .venv\Scripts\activate
+pip install mpremote pyserial pillow
+
+# Step 1 — verify wiring before uploading the main firmware
+mpremote run firmware/test_camera.py
+
+# Step 2 — upload and run
 mpremote cp firmware/ov7670.py :ov7670.py
 mpremote cp firmware/main.py   :main.py
 mpremote run firmware/main.py
 ```
 
-### 2. PC 뷰어
+Or use **Thonny IDE** (drag-and-drop upload via the file browser).
+
+## PC viewer
+
 ```bash
 pip install pyserial pillow
-python pc_app/viewer.py            # 자동 포트 감지
-python pc_app/viewer.py /dev/ttyACM0  # Linux/Mac
-python pc_app/viewer.py COM3          # Windows
+python pc_app/viewer.py            # auto-detect port
+python pc_app/viewer.py COM3       # Windows
+python pc_app/viewer.py /dev/ttyACM0  # Linux / Mac
 ```
 
-## 동작 방식
+**Features:**
+- Live video display (4× upscaled)
+- Snapshot (JPG / PNG)
+- Recording → saves individual JPEG frames
+- Reconnect button if the serial connection drops
+- Compiles recorded frames to MP4 via ffmpeg (if installed)
+
+Convert a recording folder to MP4 from the command line:
+
+```bash
+python pc_app/convert_frames.py ~/recordings/my_session
+python pc_app/convert_frames.py ~/recordings/my_session 3   # set fps
+```
+
+## How it works
 
 ```
-[OV7670] --PCLK--> [PIO 캡처] --FIFO--> [Python 루프] --USB CDC--> [PC 뷰어]
-                                           (Y채널만 추출)      프레임 프로토콜
+OV7670 ──PCLK──▶ RP2040 PIO ──FIFO──▶ Python loop ──USB CDC──▶ PC viewer
+                  (parallel            (extract Y           (parse frames,
+                   capture)             channel)             display, record)
 ```
 
-### 프로토콜 (RP2040 → PC)
-| 필드 | 크기 | 값 |
-|------|------|-----|
-| 매직 | 4B | `0xAA 0x55 0xAA 0x55` |
-| 폭   | 2B LE | 160 |
-| 높이 | 2B LE | 120 |
-| 픽셀 | 160×120 B | 그레이스케일 (Y채널) |
+### Frame protocol (RP2040 → PC)
 
-## PC 뷰어 기능
-- 실시간 라이브 화면 (4배 확대 표시)
-- **스냅샷 저장** (JPG/PNG)
-- **녹화** → 프레임별 JPEG 저장
-- ffmpeg 가 설치돼 있으면 MP4로 자동 변환 제공
+| Field | Size | Value |
+|-------|------|-------|
+| Magic | 4 B | `0xAA 0x55 0xAA 0x55` |
+| Width | 2 B LE | 160 |
+| Height | 2 B LE | 120 |
+| Pixels | 160 × 120 B | Grayscale (Y channel from YUV422) |
 
-## 문제 해결
+## Building the UF2 locally
 
-| 증상 | 확인사항 |
-|------|---------|
-| `PID=0x00 VER=0x00` | SCCB 배선 확인, 풀업 저항 필요 |
-| 화면 완전 검정 | XCLK 출력 확인 (오실로스코프로 GP15), PWDN→GND 확인 |
-| 줄무늬/노이즈 | D0-D7 배선 순서 확인, GND 공통 연결 확인 |
-| 포트 미감지 | MicroPython USB-CDC 활성화 여부, 드라이버 설치 확인 |
-| FPS 매우 낮음 | 정상 (Python 루프로 처리; 1-5 fps 는 CCTV 용도로 충분) |
+```bash
+source .venv/bin/activate
+pip install littlefs-python
+python build_scripts/create_uf2.py
+# → dist/cctv_ov7670.uf2
+```
 
-## 예상 성능
-- 해상도: QQVGA 160×120 (그레이스케일)
-- 예상 FPS: 1~5 fps (MicroPython 처리 한계)
-- USB 전송: USB-CDC (실제 USB Full Speed 12 Mbps)
+## Troubleshooting
+
+| Symptom | Check |
+|---------|-------|
+| `PID=0x00 VER=0x00` | SIOD/SIOC wiring; 4.7 kΩ pull-ups to 3.3 V required |
+| Black screen | GP15 XCLK output (~8 MHz); PWDN tied to GND; RESET tied to 3.3 V |
+| Horizontal stripes / noise | D0–D7 pin order; common GND between board and camera |
+| Port not detected | MicroPython USB-CDC enabled; USB driver installed |
+| Very low FPS | Expected — Python loop throughput; 1–5 fps is sufficient for CCTV |
+
+## Specs
+
+| Item | Value |
+|------|-------|
+| Resolution | QQVGA 160 × 120, grayscale |
+| Expected FPS | 1–5 fps (MicroPython loop-bound) |
+| USB transfer | USB-CDC (USB Full Speed, 12 Mbps physical) |
+| MicroPython | Latest stable (auto-downloaded during UF2 build) |
+| Board | Waveshare RP2040 Zero (any RP2040 with 2 MB flash works) |
