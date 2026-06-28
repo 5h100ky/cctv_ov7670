@@ -61,26 +61,19 @@ or one double-row header (2×9). Pin numbering left-to-right, top-to-bottom:
 
 ---
 
-## Pull-up Resistors (usually not needed)
+## Pull-up Resistors — Not Needed
 
-MicroPython's `machine.I2C` automatically enables the RP2040's internal
-pull-ups (~50 kΩ) on GP0/GP1. For a direct breadboard connection with
-short jumper wires at 100 kHz, **no external resistors are required**.
+No external pull-up resistors are required. Two pull-ups are already in place:
 
-Add external 4.7 kΩ pull-ups only if you experience I2C errors (`PID=0x00`)
-caused by:
-- Jumper wires longer than ~10 cm
-- Multiple devices sharing the same SCCB bus
-- Running SCCB at 400 kHz or faster
+1. **Onboard resistors** — Most OV7670 breakout boards include 4.7 kΩ or
+   10 kΩ pull-ups on SIOD/SIOC already soldered to the PCB.
+2. **RP2040 internal pull-ups** — MicroPython's `machine.I2C` automatically
+   enables the RP2040's internal ~50 kΩ pull-ups on GP0/GP1.
 
-```
-(optional, only if needed)
-3V3 ──┬───────────────────
-      │             │
-    4.7kΩ         4.7kΩ
-      │             │
-   SIOD (GP0)   SIOC (GP1)
-```
+Both pull-ups are active in parallel (combined resistance is slightly lower),
+which is perfectly fine and actually improves signal quality.
+
+**Do not add external resistors** — the bus is already pulled up.
 
 ---
 

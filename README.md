@@ -38,8 +38,8 @@ The OV7670 breakout board has **18 pins**. Connect them as follows:
 |------:|--------|-------------|-------|
 | 1 | VCC / 3V3 | 3V3 | **3.3 V only — never 5 V** |
 | 2 | GND | GND | |
-| 3 | SCL / SIOC | GP1 | Internal pull-up auto-enabled; external 4.7 kΩ only if wires > 10 cm |
-| 4 | SDA / SIOD | GP0 | Internal pull-up auto-enabled; external 4.7 kΩ only if wires > 10 cm |
+| 3 | SCL / SIOC | GP1 | Pull-up already on breakout board PCB + RP2040 internal pull-up |
+| 4 | SDA / SIOD | GP0 | Pull-up already on breakout board PCB + RP2040 internal pull-up |
 | 5 | VSYNC | GP2 | Frame sync pulse |
 | 6 | HREF | GP13 | Line-valid gate |
 | 7 | PCLK | GP12 | Pixel clock |
@@ -129,7 +129,7 @@ python build_scripts/create_uf2.py
 
 | Symptom | Check |
 |---------|-------|
-| `PID=0x00 VER=0x00` | SIOD/SIOC swapped; or wires > 10 cm needing external 4.7 kΩ pull-ups |
+| `PID=0x00 VER=0x00` | SIOD/SIOC pins swapped; VCC not 3.3 V; GND not shared |
 | Black screen | GP15 XCLK output (~8 MHz); PWDN tied to GND; RESET tied to 3.3 V |
 | Horizontal stripes / noise | D0–D7 pin order; common GND between board and camera |
 | Port not detected | MicroPython USB-CDC enabled; USB driver installed |
