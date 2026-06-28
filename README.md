@@ -32,23 +32,30 @@ cctv_ov7670/
 
 ## Wiring
 
-| OV7670 | RP2040 Zero | Notes |
-|--------|-------------|-------|
-| VCC | 3V3 | 3.3 V only — never 5 V |
-| GND | GND | |
-| SIOD | GP0 | SCCB data (I2C SDA) |
-| SIOC | GP1 | SCCB clock (I2C SCL) |
-| VSYNC | GP2 | Frame sync |
-| D0–D7 | GP4–GP11 | 8-bit parallel data (must be consecutive) |
-| PCLK | GP12 | Pixel clock |
-| HREF | GP13 | Line-valid signal |
-| XCLK | GP15 | ~8 MHz clock output (PWM-generated) |
-| RESET | 3V3 | Tie HIGH to disable reset |
-| PWDN | GND | Tie LOW to enable camera |
+The OV7670 breakout board has **18 pins**. Connect them as follows:
 
-> Add **4.7 kΩ pull-up resistors** from SIOD and SIOC to 3.3 V.
+| Pin # | OV7670 | RP2040 Zero | Notes |
+|------:|--------|-------------|-------|
+| 1 | VCC / 3V3 | 3V3 | **3.3 V only — never 5 V** |
+| 2 | GND | GND | |
+| 3 | SCL / SIOC | GP1 | 4.7 kΩ pull-up to 3.3 V required |
+| 4 | SDA / SIOD | GP0 | 4.7 kΩ pull-up to 3.3 V required |
+| 5 | VSYNC | GP2 | Frame sync pulse |
+| 6 | HREF | GP13 | Line-valid gate |
+| 7 | PCLK | GP12 | Pixel clock |
+| 8 | XCLK | GP15 | ~8 MHz master clock (PWM output) |
+| 9 | D7 | GP11 | Data MSB |
+| 10 | D6 | GP10 | |
+| 11 | D5 | GP9 | |
+| 12 | D4 | GP8 | |
+| 13 | D3 | GP7 | |
+| 14 | D2 | GP6 | |
+| 15 | D1 | GP5 | |
+| 16 | D0 | GP4 | Data LSB |
+| 17 | RESET | 3V3 | Tie HIGH — keeps camera out of reset |
+| 18 | PWDN | GND | Tie LOW — enables camera |
 
-See [WIRING.md](WIRING.md) for the full ASCII diagram.
+> See [WIRING.md](WIRING.md) for the full ASCII diagram and GPIO map.
 
 ## Manual firmware upload (alternative to UF2)
 
