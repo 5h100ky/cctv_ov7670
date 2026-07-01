@@ -128,27 +128,34 @@ python -c "import serial, PIL; print('OK')"
 
 ---
 
-## Step 5 — Flash the UF2 to RP2040 Zero
+## Step 5 — Flash MicroPython to RP2040 Zero
 
-This installs MicroPython + the CCTV firmware in one step.
+> **Recommended path: Steps 5 + 8 (mpremote upload).**
+> The combined UF2 method (below) works on some systems but may leave an empty filesystem on others.
+> Flashing plain MicroPython and then uploading via mpremote is always reliable.
 
-### Download the pre-built UF2
+### 5a — Flash plain MicroPython (recommended)
 
-Go to [Releases](https://github.com/5h100ky/cctv_ov7670/releases/latest) and download `cctv_ov7670.uf2`.
-
-Or download the latest build artifact from [Actions](https://github.com/5h100ky/cctv_ov7670/actions) → latest run → **cctv_ov7670_uf2**.
-
-### Flash it
+Download `micropython_rp2040.uf2` from the [dist/](dist/) folder in this repo,
+or grab the latest stable release from [micropython.org/download/RPI_PICO](https://micropython.org/download/RPI_PICO/).
 
 | Step | Action |
 |------|--------|
 | 1 | Hold the **BOOT button** on the RP2040 Zero |
 | 2 | While holding BOOT, plug the USB cable into the PC |
 | 3 | Release BOOT — a drive named **`RPI-RP2`** appears |
-| 4 | Drag and drop `cctv_ov7670.uf2` onto that drive |
-| 5 | The drive disappears and the board reboots automatically |
+| 4 | Drag and drop `micropython_rp2040.uf2` onto that drive |
+| 5 | The drive disappears and the board reboots into MicroPython |
 
-> The CCTV firmware starts running immediately after reboot.
+Then continue to **Step 6** (verify wiring) and **Step 8** (upload firmware files).
+
+### 5b — Flash the all-in-one UF2 (alternative)
+
+This bundles MicroPython + firmware files into a single drag-and-drop image.
+
+Go to [Releases](https://github.com/5h100ky/cctv_ov7670/releases/latest) and download `cctv_ov7670.uf2`, then flash it the same way as above.
+
+> If the viewer shows "Waiting for frames…" after flashing this UF2, the embedded filesystem was not recognised — use the **Step 8** manual upload to fix it.
 
 ### Build the UF2 yourself (optional)
 
@@ -222,65 +229,95 @@ Test PASSED — proceed to flash main.py
 
 ## Step 7 — Run the PC Viewer
 
-Activate the virtual environment first (if not already active).
+The viewer works on **macOS and Windows** (Python 3.9+, tkinter, pyserial, Pillow — all cross-platform).
+It streams **live colour video** from the OV7670 at ~1–3 FPS over USB.
 
-#### macOS
+> ⚠️ **Close Arduino IDE, Thonny, or any other serial monitor before starting the viewer.**
+> Only one program can hold the serial port at a time. If you see `[Errno 16] Resource busy`,
+> another application is still using the port.
+
+### macOS
+
 ```bash
+# 1. Activate virtual environment
 source .venv/bin/activate
+
+# 2. Launch the viewer (auto-detects the RP2040 port)
 python pc_app/viewer.py
+
+# If auto-detect fails, specify the port manually:
+python pc_app/viewer.py /dev/cu.usbmodem1201
 ```
 
-The app auto-detects the RP2040 serial port.
-If auto-detect fails, a port selector dialog appears.
-To specify manually:
+To find your port if needed:
 ```bash
-python pc_app/viewer.py /dev/tty.usbmodem101
+ls /dev/cu.usbmodem*
 ```
 
-#### Windows
+### Windows
+
 ```cmd
+:: 1. Activate virtual environment
 .venv\Scripts\activate
-python pc_app\viewer.py
-```
 
-To specify port manually:
-```cmd
+:: 2. Launch the viewer (auto-detects the RP2040 COM port)
+python pc_app\viewer.py
+
+:: If auto-detect fails, specify the port manually:
 python pc_app\viewer.py COM3
 ```
 
+To find your COM port: open **Device Manager** → **Ports (COM & LPT)** → look for **USB Serial Device** or **Raspberry Pi Pico**.
+
+### What to expect
+
+- The window title is **RP2040 Zero CCTV Viewer**
+- **FPS ~1–3** is normal — this is a MicroPython firmware limit over USB CDC
+- **Frames counter** should increase steadily; if it stays at 0, check the port and wiring
+- The live image is colour (YCbCr → RGB)
+
 ---
 
-## Step 8 — Upload Firmware Manually (alternative to UF2)
+## Step 8 — Upload Firmware via mpremote (recommended)
 
-If you prefer to upload files directly without the UF2:
+This is the most reliable method. After flashing plain MicroPython (Step 5a),
+upload the three firmware files directly:
 
 #### macOS
 ```bash
 source .venv/bin/activate
+
+# Upload firmware files
 mpremote cp firmware/ov7670.py :ov7670.py
 mpremote cp firmware/main.py   :main.py
-mpremote run firmware/main.py
-```
 
-#### Windows
-```cmd
-.venv\Scripts\activate
-mpremote cp firmware\ov7670.py :ov7670.py
-mpremote cp firmware\main.py   :main.py
-mpremote run firmware\main.py
-```
-
-To auto-start on every power-up, also upload boot.py:
-
-#### macOS
-```bash
+# Optional: auto-start on every power-up
 mpremote cp firmware/boot.py :boot.py
 ```
 
 #### Windows
 ```cmd
+.venv\Scripts\activate
+
+mpremote cp firmware\ov7670.py :ov7670.py
+mpremote cp firmware\main.py   :main.py
+
+:: Optional: auto-start on every power-up
 mpremote cp firmware\boot.py :boot.py
 ```
+
+Verify the files landed on the board:
+```bash
+mpremote fs ls
+```
+Expected output:
+```
+        7073 main.py
+        4220 ov7670.py
+```
+
+After uploading, **unplug and replug the USB cable** (or run `mpremote reset`) to start streaming.
+Then launch the viewer as described in Step 7.
 
 ---
 
@@ -288,9 +325,9 @@ mpremote cp firmware\boot.py :boot.py
 
 | Button | Action |
 |--------|--------|
-| ⏺ Record | Choose a folder, then saves each frame as JPEG |
+| ⏺ Record | Choose a folder, then saves each frame as colour JPEG |
 | ⏹ Stop | Stops recording; offers MP4 export if ffmpeg is installed |
-| 📷 Snapshot | Save the current frame as JPG or PNG |
+| 📷 Snapshot | Save the current frame as JPG or PNG (colour) |
 | 📁 Open folder | Open the recording folder in Finder / Explorer |
 | 🔌 Reconnect | Reopen the port selector if the connection drops |
 
@@ -321,15 +358,26 @@ python pc_app\convert_frames.py C:\path\to\recording\folder 5
 
 ## Troubleshooting
 
+### Common (all platforms)
+
+| Problem | Fix |
+|---------|-----|
+| `[Errno 16] Resource busy` / `Access is denied` | Another app (Arduino IDE, Thonny, serial monitor) is holding the port — close it first |
+| Viewer connects but **Frames stays at 0** | Board filesystem is empty — run Step 8 (mpremote upload) |
+| Viewer connects, frames count increases, but **screen is black** | HREF or PCLK wiring loose — check GP12/GP13 solder joints |
+| `ValueError: freq out of range` in firmware | PIO freq exceeded system clock — update to latest `main.py` (already fixed) |
+| `[Errno 5] EIO` when reading camera ID | Some OV7670 clones need 2-phase SCCB reads — update to latest `ov7670.py` (already fixed) |
+| Horizontal banding / alternating light-dark rows | PIO ISR not cleared at line end — update to latest `main.py` (already fixed) |
+| Image is greyscale instead of colour | Running an old firmware — re-upload `main.py` from this repo |
+
 ### macOS
 
 | Problem | Fix |
 |---------|-----|
 | `mpremote: command not found` | Virtual environment not active — run `source .venv/bin/activate` |
 | `ModuleNotFoundError: No module named '_tkinter'` | Run `brew install python-tk@3.14` (match your Python version), then recreate the venv |
-| No `/dev/tty.usbmodem*` device | Try a different USB cable (some are charge-only) |
-| `Permission denied` on serial port | `sudo chmod 666 /dev/tty.usbmodem*` |
-| Viewer shows black canvas | Check VSYNC on GP2, PWDN tied to GND, RESET tied to 3V3 |
+| No `/dev/cu.usbmodem*` device | Try a different USB cable (some are charge-only) |
+| `Permission denied` on serial port | `sudo chmod 666 /dev/cu.usbmodem*` |
 
 ### Windows
 
@@ -338,6 +386,5 @@ python pc_app\convert_frames.py C:\path\to\recording\folder 5
 | `python` not found | Re-install Python with **"Add to PATH"** checked |
 | `mpremote` not found | Virtual environment not active — run `.venv\Scripts\activate` |
 | No COM port in Device Manager | Install the [Pico Windows driver](https://github.com/raspberrypi/pico-setup-windows) or use a different USB cable |
-| `Access is denied` on COM port | Close Thonny or any other app using the port |
+| `Access is denied` on COM port | Close Arduino IDE, Thonny, or any serial monitor using the port |
 | PowerShell activation blocked | Run `Set-ExecutionPolicy RemoteSigned -Scope CurrentUser` |
-| Viewer shows black canvas | Check VSYNC on GP2, PWDN tied to GND, RESET tied to 3V3 |

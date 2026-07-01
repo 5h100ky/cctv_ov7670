@@ -28,6 +28,19 @@ MAGIC = b'\xAA\x55\xAA\x55'
 BAUD  = 115200   # USB-CDC ignores baud rate, but pyserial requires a value
 
 
+def _yuyv_to_image(data: bytes, w: int, h: int) -> Image.Image:
+    """Convert packed YUYV422 bytes to an RGB PIL Image using PIL only."""
+    # YUYV layout: [Y0, Cb, Y1, Cr, Y2, Cb, Y3, Cr, ...]
+    # Y plane: even bytes;  Cb plane: bytes[1::4];  Cr plane: bytes[3::4]
+    y_plane  = data[0::2]                      # W*H bytes
+    cb_small = data[1::4]                      # W//2 * H bytes
+    cr_small = data[3::4]                      # W//2 * H bytes
+    y_img  = Image.frombytes('L', (w, h), bytes(y_plane))
+    cb_img = Image.frombytes('L', (w // 2, h), bytes(cb_small)).resize((w, h), Image.NEAREST)
+    cr_img = Image.frombytes('L', (w // 2, h), bytes(cr_small)).resize((w, h), Image.NEAREST)
+    return Image.merge('YCbCr', [y_img, cb_img, cr_img]).convert('RGB')
+
+
 # ---------------------------------------------------------------------------
 # Serial reader thread
 # Continuously reads from serial port and puts decoded frames into a queue.
@@ -71,7 +84,7 @@ def _serial_reader(port: str, frame_q: queue.Queue, stop_evt: threading.Event) -
                 buf = buf[4:]    # bad header; skip magic and re-search
                 continue
 
-            total = 8 + w * h
+            total = 8 + w * h * 2   # YUYV422: 2 bytes per pixel
             if len(buf) < total:
                 break            # incomplete frame; wait for more data
 
@@ -79,7 +92,7 @@ def _serial_reader(port: str, frame_q: queue.Queue, stop_evt: threading.Event) -
             buf = buf[total:]
 
             try:
-                img = Image.frombytes('L', (w, h), pixel_data)
+                img = _yuyv_to_image(pixel_data, w, h)
                 if frame_q.full():
                     try:
                         frame_q.get_nowait()   # drop oldest frame to avoid lag
@@ -305,8 +318,8 @@ class CCTVApp:
             self.canvas.delete(self._canvas_text)
             self._canvas_text = None
 
-        # Scale up for display (keep NEAREST to avoid blur on small sensor)
-        disp = img.resize((self.CANVAS_W, self.CANVAS_H), Image.NEAREST).convert("RGB")
+        # Scale up for display
+        disp = img.resize((self.CANVAS_W, self.CANVAS_H), Image.NEAREST)
         self._photo = ImageTk.PhotoImage(disp)
         self.canvas.create_image(0, 0, anchor=tk.NW, image=self._photo)
 

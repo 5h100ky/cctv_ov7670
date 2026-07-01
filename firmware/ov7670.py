@@ -99,7 +99,10 @@ class OV7670:
         self._i2c.writeto_mem(OV7670_ADDR, reg, bytes([val]))
 
     def _read_reg(self, reg: int) -> int:
-        return self._i2c.readfrom_mem(OV7670_ADDR, reg, 1)[0]
+        # SCCB requires a separate write (reg addr) + read transaction;
+        # this module NACKs a combined repeated-start readfrom_mem().
+        self._i2c.writeto(OV7670_ADDR, bytes([reg]))
+        return self._i2c.readfrom(OV7670_ADDR, 1)[0]
 
     def init(self) -> None:
         # Send reset first, then delay, then the rest

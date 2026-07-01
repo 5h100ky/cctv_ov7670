@@ -46,8 +46,10 @@ print(f"    OV7670 found at 0x{OV7670_ADDR:02X}  OK")
 # --- Step 3: Read chip ID ---
 print("\n[3] Reading OV7670 chip ID...")
 try:
-    pid = i2c.readfrom_mem(OV7670_ADDR, 0x0A, 1)[0]
-    ver = i2c.readfrom_mem(OV7670_ADDR, 0x0B, 1)[0]
+    i2c.writeto(OV7670_ADDR, bytes([0x0A]))
+    pid = i2c.readfrom(OV7670_ADDR, 1)[0]
+    i2c.writeto(OV7670_ADDR, bytes([0x0B]))
+    ver = i2c.readfrom(OV7670_ADDR, 1)[0]
     print(f"    PID=0x{pid:02X}  VER=0x{ver:02X}")
     if pid == 0x76 and ver == 0x73:
         print("    Chip ID matches OV7670  OK")
@@ -84,7 +86,8 @@ print("\n[5] Register write/read test (COM2 = 0x09)...")
 try:
     i2c.writeto_mem(OV7670_ADDR, 0x09, bytes([0x02]))  # COM2: set output drive 2x
     time.sleep_ms(5)
-    val = i2c.readfrom_mem(OV7670_ADDR, 0x09, 1)[0]
+    i2c.writeto(OV7670_ADDR, bytes([0x09]))
+    val = i2c.readfrom(OV7670_ADDR, 1)[0]
     if val == 0x02:
         print("    Write/read OK")
     else:
